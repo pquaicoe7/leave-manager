@@ -6,6 +6,10 @@ Small demo to manage employee leave with admin/employee roles.
 - Admin: create leave types, assign types to employees, review requests (approve/reject with reason).
 - Employee: apply for leave (only assigned types, no past dates, overlap check, respects max days), see status & rejection reason.
 
+  **In-app notifications:** 
+  - When an employee submits a request, all admins get a one-time toast on the Admin Dashboard.
+  - When an admin approves/rejects, the employee gets a one-time toast on the Employee Dashboard.
+
 ## Tech & Why
 - PHP 8 (fast to build server-rendered forms, simple sessions)
 - MySQL (relational: foreign keys, unique constraints, transactions)
@@ -20,6 +24,7 @@ Small demo to manage employee leave with admin/employee roles.
 ### Demo accounts
 - Admin: `admin@example.com` / `admin123`
 - Employee: `jane@example.com` / `employee123`
+- Employee 2: `philip@gmail.com` /  `philip1234`
 
 ## Security basics
 - Sessions + role guard `require_role('admin'|'employee')` on every protected page.
