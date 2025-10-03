@@ -12,10 +12,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if ($user && password_verify($password, $user['password_hash'])) {
     $_SESSION['user'] = [
-      'id'    => $user['id'],
-      'name'  => $user['name'],
+      'id' => $user['id'],
+      'name' => $user['name'],
       'email' => $user['email'],
-      'role'  => $user['role'],
+      'role' => $user['role'],
     ];
     if ($user['role'] === 'admin') {
       header('Location: /eban-leave/public/admin/dashboard.php');
@@ -30,13 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8" />
   <title>Eban Leave | Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 </head>
+
 <body class="bg-light">
   <div class="container py-5">
     <div class="row justify-content-center">
@@ -61,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="text-muted small mt-3">
               Admin: admin@eban.test / admin123<br>
               Employee: jane@eban.test / employee123
+              Employee 2: philip@gmail.com / philip1234
             </p>
           </div>
         </div>
@@ -68,4 +70,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </body>
+
 </html>
