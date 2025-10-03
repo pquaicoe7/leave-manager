@@ -8,7 +8,7 @@ $user_id = (int)$u['id'];
 $msg = '';
 $err = '';
 
-// ------------------ Allowed leave types for this employee ------------------
+//  Allowed leave types for this employee
 $types_stmt = db()->prepare("
   SELECT lt.id, lt.name, lt.max_days
   FROM employee_leave_types elt
@@ -92,6 +92,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $days_requested,
               $reason
             ]);
+
+            // -------- NEW: notify all admins about this new request --------
+            // (requires notify_admins() from config.php, which you said is already added)
+            $tn = db()->prepare("SELECT name FROM leave_types WHERE id=?");
+            $tn->execute([$leave_type_id]);
+            $type_name = (string)$tn->fetchColumn();
+
+            notify_admins(
+              "New leave request from {$u['name']} ({$type_name}: {$start->format('Y-m-d')} → {$end->format('Y-m-d')})",
+              "/eban-leave/public/admin/review_requests.php?status=pending"
+            );
 
             // go to list with success flag
             header('Location: /eban-leave/public/employee/my_requests.php?submitted=1');

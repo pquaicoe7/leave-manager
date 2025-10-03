@@ -10,8 +10,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? '';
   $req_id = (int)($_POST['request_id'] ?? 0);
 
+  // UPDATED: include leave_type_name for nicer messages
   $q = db()->prepare("
-    SELECT lr.*, lt.max_days
+    SELECT lr.*, lt.max_days, lt.name AS leave_type_name
     FROM leave_requests lr
     JOIN leave_types lt ON lt.id = lr.leave_type_id
     WHERE lr.id = ?
@@ -42,6 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ");
       $upd->execute([$admin_id,$req_id]);
       $msg = "Request #{$req_id} approved.";
+
+      // NEW: notify the employee
+      notify_user(
+        (int)$req['user_id'],
+        "Approved: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']})",
+        "/eban-leave/public/employee/my_requests.php"
+      );
     }
   } elseif ($action === 'reject') {
     $reason = trim($_POST['rejection_reason'] ?? '');
@@ -55,6 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ");
       $upd->execute([$reason,$admin_id,$req_id]);
       $msg = "Request #{$req_id} rejected.";
+
+      // NEW: notify the employee
+      notify_user(
+        (int)$req['user_id'],
+        "Rejected: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']})",
+        "/eban-leave/public/employee/my_requests.php"
+      );
     }
   }
 }

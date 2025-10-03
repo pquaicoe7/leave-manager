@@ -5,14 +5,20 @@ require_role('employee');
 $u = current_user();
 $user_id = (int)$u['id'];
 
-// ----- Stats for this employee -----
-$pending_count  = (int) db()->prepare("SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'")
-  ->execute([$user_id]) ?: 0;
-$pending_count  = (int) db()->query("SELECT COUNT(*) FROM leave_requests WHERE user_id={$user_id} AND status='pending'")->fetchColumn();
+// ----- Stats for this employee (safe prepared statements) -----
+$stmt = db()->prepare("SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'");
+$stmt->execute([$user_id]);
+$pending_count = (int)$stmt->fetchColumn();
 
-$approved_count = (int) db()->query("SELECT COUNT(*) FROM leave_requests WHERE user_id={$user_id} AND status='approved'")->fetchColumn();
-$rejected_count = (int) db()->query("SELECT COUNT(*) FROM leave_requests WHERE user_id={$user_id} AND status='rejected'")->fetchColumn();
-$total_count    = $pending_count + $approved_count + $rejected_count;
+$stmt = db()->prepare("SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='approved'");
+$stmt->execute([$user_id]);
+$approved_count = (int)$stmt->fetchColumn();
+
+$stmt = db()->prepare("SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='rejected'");
+$stmt->execute([$user_id]);
+$rejected_count = (int)$stmt->fetchColumn();
+
+$total_count = $pending_count + $approved_count + $rejected_count;
 
 // ----- Allowed leave types + remaining days this year -----
 $allowed_types = db()->prepare("
@@ -51,6 +57,10 @@ $recent = db()->prepare("
 ");
 $recent->execute([$user_id]);
 $recent = $recent->fetchAll();
+
+// ----- Unread notifications (show up to 3, then mark read) -----
+$notes = unread_notifications_for($user_id, 3);
+$note_ids = array_map(fn($n) => (int)$n['id'], $notes);
 
 function badge(string $status): string {
   if ($status === 'approved') return '<span class="badge bg-success">Approved</span>';
@@ -195,5 +205,41 @@ function badge(string $status): string {
     </div>
   </div>
 </div>
+
+<?php if (!empty($notes)): ?>
+<!-- Toasts (one-time popups) -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index:1080; top: 70px;">
+
+  <?php foreach ($notes as $n): ?>
+    <div class="toast show mb-2" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="8000">
+      <div class="toast-header">
+        <strong class="me-auto">Notification</strong>
+        <small><?= htmlspecialchars($n['created_at']) ?></small>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">
+        <?= htmlspecialchars($n['message']) ?>
+        <?php if (!empty($n['link'])): ?>
+          <div class="mt-2">
+            <a href="<?= htmlspecialchars($n['link']) ?>" class="btn btn-sm btn-primary">Open</a>
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<!-- Bootstrap JS + auto-show toasts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.querySelectorAll('.toast').forEach(t => new bootstrap.Toast(t, { delay: 8000 }).show());
+</script>
+
+<?php
+// mark as read so they only show once
+if (!empty($note_ids)) { mark_notifications_read($note_ids); }
+?>
+
 </body>
 </html>
