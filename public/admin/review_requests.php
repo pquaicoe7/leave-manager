@@ -179,33 +179,43 @@ function badge(string $s): string {
                 <?= $r['reviewer_name'] ? htmlspecialchars($r['reviewer_name']) : '' ?>
                 <?= $r['reviewed_at'] ? '<br><span class="small">'.htmlspecialchars($r['reviewed_at']).'</span>' : '' ?>
               </td>
-              <td style="min-width:220px;">
-                <?php if ($r['status'] === 'pending'): ?>
-                  <!-- Approve opens modal -->
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-success w-100 mb-2"
-                    data-bs-toggle="modal"
-                    data-bs-target="#approveModal"
-                    data-id="<?= (int)$r['id'] ?>"
-                    data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
-                    data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
-                    data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
-                    Approve
-                  </button>
 
-                  <!-- Reject opens modal -->
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-danger w-100"
-                    data-bs-toggle="modal"
-                    data-bs-target="#rejectModal"
-                    data-id="<?= (int)$r['id'] ?>"
-                    data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
-                    data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
-                    data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
-                    Reject
-                  </button>
+              <!-- DROPDOWN ACTIONS -->
+              <td style="min-width:140px;">
+                <?php if ($r['status'] === 'pending'): ?>
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100"
+                            type="button" id="act-<?= (int)$r['id'] ?>"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                      Actions
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="act-<?= (int)$r['id'] ?>">
+                      <!-- Approve opens APPROVE modal -->
+                      <li>
+                        <button type="button" class="dropdown-item"
+                                data-bs-toggle="modal"
+                                data-bs-target="#approveModal"
+                                data-id="<?= (int)$r['id'] ?>"
+                                data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+                                data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+                                data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+                          ✅ Approve
+                        </button>
+                      </li>
+                      <!-- Reject opens REJECT modal -->
+                      <li>
+                        <button type="button" class="dropdown-item text-danger"
+                                data-bs-toggle="modal"
+                                data-bs-target="#rejectModal"
+                                data-id="<?= (int)$r['id'] ?>"
+                                data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+                                data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+                                data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+                          ❌ Reject
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
                 <?php else: ?>
                   <span class="text-muted small">No actions</span>
                 <?php endif; ?>
