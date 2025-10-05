@@ -121,6 +121,10 @@ function badge(string $s): string {
   <title>Admin | Review Requests</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    /* Let dropdown menus overflow beyond the responsive table wrapper (no scrolling needed) */
+    .table-responsive { overflow: visible; }
+  </style>
 </head>
 <body class="bg-light">
 <div class="container py-4">
@@ -180,46 +184,48 @@ function badge(string $s): string {
                 <?= $r['reviewed_at'] ? '<br><span class="small">'.htmlspecialchars($r['reviewed_at']).'</span>' : '' ?>
               </td>
 
-              <!-- DROPDOWN ACTIONS -->
-              <td style="min-width:140px;">
-                <?php if ($r['status'] === 'pending'): ?>
-                  <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100"
-                            type="button" id="act-<?= (int)$r['id'] ?>"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                      Actions
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="act-<?= (int)$r['id'] ?>">
-                      <!-- Approve opens APPROVE modal -->
-                      <li>
-                        <button type="button" class="dropdown-item"
-                                data-bs-toggle="modal"
-                                data-bs-target="#approveModal"
-                                data-id="<?= (int)$r['id'] ?>"
-                                data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
-                                data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
-                                data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
-                          ✅ Approve
-                        </button>
-                      </li>
-                      <!-- Reject opens REJECT modal -->
-                      <li>
-                        <button type="button" class="dropdown-item text-danger"
-                                data-bs-toggle="modal"
-                                data-bs-target="#rejectModal"
-                                data-id="<?= (int)$r['id'] ?>"
-                                data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
-                                data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
-                                data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
-                          ❌ Reject
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                <?php else: ?>
-                  <span class="text-muted small">No actions</span>
-                <?php endif; ?>
-              </td>
+              <!-- DROPDOWN ACTIONS (no clipping; no scroll) -->
+              <td style="min-width:250px;">
+  <?php if ($r['status'] === 'pending'): ?>
+    <div class="dropdown">
+      <button class="btn btn-secondary btn-sm dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+        Actions
+      </button>
+      <div class="dropdown-menu p-2" style="min-width: 250px;">
+        <div class="d-flex gap-2">
+          <!-- Approve -->
+          <button
+            type="button"
+            class="btn btn-sm btn-success flex-fill"
+            data-bs-toggle="modal"
+            data-bs-target="#approveModal"
+            data-id="<?= (int)$r['id'] ?>"
+            data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+            data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+            data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+            Approve
+          </button>
+
+          <!-- Reject -->
+          <button
+            type="button"
+            class="btn btn-sm btn-danger flex-fill"
+            data-bs-toggle="modal"
+            data-bs-target="#rejectModal"
+            data-id="<?= (int)$r['id'] ?>"
+            data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+            data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+            data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+            Reject
+          </button>
+        </div>
+      </div>
+    </div>
+  <?php else: ?>
+    <span class="text-muted small">No actions</span>
+  <?php endif; ?>
+</td>
+
             </tr>
           <?php endforeach; endif; ?>
           </tbody>
@@ -231,7 +237,7 @@ function badge(string $s): string {
 
 <!-- Approve Modal -->
 <div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <form method="post" class="modal-content">
       <input type="hidden" name="action" value="approve">
       <input type="hidden" name="request_id" id="app-id">
@@ -255,7 +261,7 @@ function badge(string $s): string {
 
 <!-- Reject Modal -->
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <form method="post" class="modal-content">
       <input type="hidden" name="action" value="reject">
       <input type="hidden" name="request_id" id="rej-id">
@@ -279,7 +285,7 @@ function badge(string $s): string {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Approve modal
+// Approve modal fill
 const approveModal = document.getElementById('approveModal');
 approveModal.addEventListener('show.bs.modal', (event) => {
   const btn = event.relatedTarget;
@@ -289,7 +295,7 @@ approveModal.addEventListener('show.bs.modal', (event) => {
   document.getElementById('app-note').value = '';
 });
 
-// Reject modal
+// Reject modal fill
 const rejectModal = document.getElementById('rejectModal');
 rejectModal.addEventListener('show.bs.modal', (event) => {
   const btn = event.relatedTarget;
