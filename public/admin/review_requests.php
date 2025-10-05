@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? '';
   $req_id = (int)($_POST['request_id'] ?? 0);
 
-  // UPDATED: include leave_type_name for nicer messages
+  // Load request with type info for checks + nicer messages
   $q = db()->prepare("
     SELECT lr.*, lt.max_days, lt.name AS leave_type_name
     FROM leave_requests lr
@@ -23,58 +23,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (!$req) {
     $err = "Request not found.";
   } elseif ($action === 'approve') {
-    // check remaining before approving
-    $used = db()->prepare("
-      SELECT COALESCE(SUM(days_requested),0)
-      FROM leave_requests
-      WHERE user_id=? AND leave_type_id=? AND status='approved'
-        AND YEAR(start_date)=YEAR(?) AND id<>?
-    ");
-    $used->execute([$req['user_id'],$req['leave_type_id'],$req['start_date'],$req['id']]);
-    $remaining = (int)$req['max_days'] - (int)$used->fetchColumn();
-
-    if ((int)$req['days_requested'] > $remaining) {
-      $err = "Cannot approve: exceeds remaining {$remaining} day(s).";
+    $note = trim($_POST['review_note'] ?? '');
+    if ($note === '') {
+      $err = "Please enter a short reason for approving.";
     } else {
-      $upd = db()->prepare("
-        UPDATE leave_requests
-        SET status='approved', rejection_reason=NULL, reviewed_by=?, reviewed_at=NOW()
-        WHERE id=?
+      // Re-check remaining (in case something else got approved meanwhile)
+      $used = db()->prepare("
+        SELECT COALESCE(SUM(days_requested),0)
+        FROM leave_requests
+        WHERE user_id=? AND leave_type_id=? AND status='approved'
+          AND YEAR(start_date)=YEAR(?) AND id<>?
       ");
-      $upd->execute([$admin_id,$req_id]);
-      $msg = "Request #{$req_id} approved.";
+      $used->execute([$req['user_id'], $req['leave_type_id'], $req['start_date'], $req['id']]);
+      $remaining = (int)$req['max_days'] - (int)$used->fetchColumn();
 
-      // NEW: notify the employee
-      notify_user(
-        (int)$req['user_id'],
-        "Approved: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']})",
-        "/eban-leave/public/employee/my_requests.php"
-      );
+      if ((int)$req['days_requested'] > $remaining) {
+        $err = "Cannot approve: exceeds remaining {$remaining} day(s).";
+      } else {
+        $upd = db()->prepare("
+          UPDATE leave_requests
+          SET status='approved',
+              rejection_reason=NULL,
+              review_note=?,
+              reviewed_by=?,
+              reviewed_at=NOW()
+          WHERE id=?
+        ");
+        $upd->execute([$note, $admin_id, $req_id]);
+        $msg = "Request #{$req_id} approved.";
+
+        // Notify employee (with note)
+        notify_user(
+          (int)$req['user_id'],
+          "Approved: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']}). Note: {$note}",
+          "/eban-leave/public/employee/my_requests.php"
+        );
+      }
     }
   } elseif ($action === 'reject') {
-    $reason = trim($_POST['rejection_reason'] ?? '');
-    if ($reason === '') {
+    $note = trim($_POST['review_note'] ?? '');
+    if ($note === '') {
       $err = "Rejection reason is required.";
     } else {
       $upd = db()->prepare("
         UPDATE leave_requests
-        SET status='rejected', rejection_reason=?, reviewed_by=?, reviewed_at=NOW()
+        SET status='rejected',
+            rejection_reason=?,
+            review_note=?,
+            reviewed_by=?,
+            reviewed_at=NOW()
         WHERE id=?
       ");
-      $upd->execute([$reason,$admin_id,$req_id]);
+      $upd->execute([$note, $note, $admin_id, $req_id]);
       $msg = "Request #{$req_id} rejected.";
 
-      // NEW: notify the employee
+      // Notify employee (with reason)
       notify_user(
         (int)$req['user_id'],
-        "Rejected: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']})",
+        "Rejected: {$req['leave_type_name']} ({$req['start_date']} → {$req['end_date']}). Reason: {$note}",
         "/eban-leave/public/employee/my_requests.php"
       );
     }
   }
 }
 
-// -------- Filter + fetch --------
+// -------- Filter + fetch list --------
 $status = $_GET['status'] ?? 'pending';
 if (!in_array($status, ['all','pending','approved','rejected'], true)) $status = 'pending';
 
@@ -140,7 +153,7 @@ function badge(string $s): string {
             <tr>
               <th>#</th><th>Employee</th><th>Type</th><th>Dates</th>
               <th>Days</th><th>Status</th>
-              <th>Reason (employee)</th><th>Rejection Reason</th>
+              <th>Reason (employee)</th><th>Review Note</th>
               <th>Reviewed By</th><th>Actions</th>
             </tr>
           </thead>
@@ -159,26 +172,40 @@ function badge(string $s): string {
               <td><?= (int)$r['days_requested'] ?></td>
               <td><?= badge($r['status']) ?></td>
               <td class="text-muted"><?= nl2br(htmlspecialchars($r['reason'] ?? '')) ?></td>
-              <td class="text-muted"><?= nl2br(htmlspecialchars($r['rejection_reason'] ?? '')) ?></td>
+              <td class="text-muted">
+                <?= nl2br(htmlspecialchars($r['review_note'] ?? ($r['rejection_reason'] ?? ''))) ?>
+              </td>
               <td class="text-muted">
                 <?= $r['reviewer_name'] ? htmlspecialchars($r['reviewer_name']) : '' ?>
                 <?= $r['reviewed_at'] ? '<br><span class="small">'.htmlspecialchars($r['reviewed_at']).'</span>' : '' ?>
               </td>
               <td style="min-width:220px;">
                 <?php if ($r['status'] === 'pending'): ?>
-                  <form method="post" class="mb-2">
-                    <input type="hidden" name="action" value="approve">
-                    <input type="hidden" name="request_id" value="<?= (int)$r['id'] ?>">
-                    <button class="btn btn-sm btn-success w-100">Approve</button>
-                  </form>
-                  <form method="post">
-                    <input type="hidden" name="action" value="reject">
-                    <input type="hidden" name="request_id" value="<?= (int)$r['id'] ?>">
-                    <div class="input-group input-group-sm">
-                      <input name="rejection_reason" class="form-control" placeholder="Reason" required>
-                      <button class="btn btn-danger">Reject</button>
-                    </div>
-                  </form>
+                  <!-- Approve opens modal -->
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-success w-100 mb-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#approveModal"
+                    data-id="<?= (int)$r['id'] ?>"
+                    data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+                    data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+                    data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+                    Approve
+                  </button>
+
+                  <!-- Reject opens modal -->
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-danger w-100"
+                    data-bs-toggle="modal"
+                    data-bs-target="#rejectModal"
+                    data-id="<?= (int)$r['id'] ?>"
+                    data-emp="<?= htmlspecialchars($r['employee_name']) ?>"
+                    data-type="<?= htmlspecialchars($r['leave_type_name']) ?>"
+                    data-dates="<?= htmlspecialchars($r['start_date']) ?> → <?= htmlspecialchars($r['end_date']) ?>">
+                    Reject
+                  </button>
                 <?php else: ?>
                   <span class="text-muted small">No actions</span>
                 <?php endif; ?>
@@ -191,5 +218,76 @@ function badge(string $s): string {
     </div>
   </div>
 </div>
+
+<!-- Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="action" value="approve">
+      <input type="hidden" name="request_id" id="app-id">
+      <div class="modal-header">
+        <h5 class="modal-title">Approve Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted" id="app-context"></div>
+        <label class="form-label">Reason (required)</label>
+        <textarea name="review_note" id="app-note" class="form-control" rows="3" required
+                  placeholder="Why are you approving this request?"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success">Approve</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="action" value="reject">
+      <input type="hidden" name="request_id" id="rej-id">
+      <div class="modal-header">
+        <h5 class="modal-title">Reject Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted" id="rej-context"></div>
+        <label class="form-label">Reason (required)</label>
+        <textarea name="review_note" id="rej-note" class="form-control" rows="3" required
+                  placeholder="Why are you rejecting this request?"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger">Reject</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Approve modal
+const approveModal = document.getElementById('approveModal');
+approveModal.addEventListener('show.bs.modal', (event) => {
+  const btn = event.relatedTarget;
+  document.getElementById('app-id').value = btn.getAttribute('data-id');
+  const ctx = `${btn.getAttribute('data-emp')} — ${btn.getAttribute('data-type')} (${btn.getAttribute('data-dates')})`;
+  document.getElementById('app-context').textContent = ctx;
+  document.getElementById('app-note').value = '';
+});
+
+// Reject modal
+const rejectModal = document.getElementById('rejectModal');
+rejectModal.addEventListener('show.bs.modal', (event) => {
+  const btn = event.relatedTarget;
+  document.getElementById('rej-id').value = btn.getAttribute('data-id');
+  const ctx = `${btn.getAttribute('data-emp')} — ${btn.getAttribute('data-type')} (${btn.getAttribute('data-dates')})`;
+  document.getElementById('rej-context').textContent = ctx;
+  document.getElementById('rej-note').value = '';
+});
+</script>
 </body>
 </html>
